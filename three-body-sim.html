@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Three-Body Gravitational Simulator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&display=swap');
+
+  :root {
+    --c0: #0a0c12;
+    --c1: #111520;
+    --c2: #1a2035;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --accent3: #7fff7f;
+    --body1: #ff4466;
+    --body2: #44aaff;
+    --body3: #ffcc44;
+    --panel: rgba(10,14,26,0.88);
+    --border: rgba(0,212,255,0.18);
+    --text: #c8deff;
+    --text-dim: #5a7299;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Exo 2', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--c0);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  #canvas-container {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+  }
+
+  canvas { display: block; }
+
+  /* ── UI OVERLAY ── */
+  #ui {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* Left panel */
+  #panel-left {
+    position: absolute;
+    top: 16px; left: 16px;
+    width: 260px;
+    pointer-events: all;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .panel-block {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    backdrop-filter: blur(12px);
+  }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+  }
+
+  /* Header */
+  #header {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #header h1 {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 6px;
+    color: var(--accent);
+    text-transform: uppercase;
+    text-shadow: 0 0 20px rgba(0,212,255,0.5);
+  }
+
+  #header .sub {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    margin-top: 3px;
+    font-family: var(--mono);
+  }
+
+  /* Right panel */
+  #panel-right {
+    position: absolute;
+    top: 16px; right: 16px;
+    width: 240px;
+    pointer-events: all;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Bottom panel */
+  #panel-bottom {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    pointer-events: all;
+  }
+
+  /* Buttons */
+  .btn {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 7px 14px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: rgba(0,212,255,0.05);
+    color: var(--accent);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: rgba(0,212,255,0.12); border-color: var(--accent); box-shadow: 0 0 12px rgba(0,212,255,0.2); }
+  .btn.active { background: rgba(0,212,255,0.18); border-color: var(--accent); color: #fff; }
+  .btn.danger { color: var(--accent2); border-color: rgba(255,107,53,0.3); }
+  .btn.danger:hover { background: rgba(255,107,53,0.1); border-color: var(--accent2); }
+
+  .btn-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* Sliders */
+  .slider-group { margin-bottom: 8px; }
+  .slider-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    margin-bottom: 4px;
+  }
+  .slider-label span { color: var(--accent); }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 3px;
+    background: var(--c2);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(0,212,255,0.6);
+  }
+
+  /* Toggle */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--text-dim);
+  }
+
+  .toggle {
+    position: relative;
+    width: 28px; height: 14px;
+  }
+  .toggle input { display: none; }
+  .toggle-slider {
+    position: absolute; inset: 0;
+    background: var(--c2);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: 0.2s;
+    border: 1px solid var(--border);
+  }
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 10px; height: 10px;
+    left: 2px; top: 1px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: 0.2s;
+  }
+  .toggle input:checked + .toggle-slider { background: rgba(0,212,255,0.2); border-color: var(--accent); }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(13px); background: var(--accent); }
+
+  /* Stats */
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-family: var(--mono);
+    margin-bottom: 4px;
+    color: var(--text-dim);
+  }
+  .stat-row .val { color: var(--accent3); }
+  .stat-row .val.warn { color: var(--accent2); }
+
+  /* Body indicators */
+  .body-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .body-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .body-label { font-size: 10px; font-family: var(--mono); color: var(--text-dim); }
+
+  /* Energy graph */
+  #energy-canvas {
+    width: 100%;
+    height: 70px;
+    border-radius: 3px;
+    background: var(--c1);
+    border: 1px solid var(--border);
+    display: block;
+  }
+
+  /* Presets */
+  .preset-btn {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 5px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.05); }
+
+  .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+
+  /* Status badge */
+  #status-badge {
+    position: absolute;
+    bottom: 16px; left: 16px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    padding: 5px 10px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+  #status-badge .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent3);
+    margin-right: 6px;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* FPS counter */
+  #fps-display {
+    position: absolute;
+    top: 16px;
+    right: 270px;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+
+  /* Crosshair */
+  #crosshair {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px; height: 20px;
+    pointer-events: none;
+    opacity: 0.15;
+  }
+  #crosshair::before, #crosshair::after {
+    content: '';
+    position: absolute;
+    background: var(--accent);
+  }
+  #crosshair::before { width: 1px; height: 100%; left: 50%; }
+  #crosshair::after { height: 1px; width: 100%; top: 50%; }
+
+  select {
+    font-family: var(--mono);
+    font-size: 9px;
+    background: var(--c1);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 6px;
+    border-radius: 3px;
+    width: 100%;
+    margin-bottom: 6px;
+    cursor: pointer;
+  }
+
+  hr.divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 8px 0;
+  }
+
+  .mass-color-1 { color: var(--body1); }
+  .mass-color-2 { color: var(--body2); }
+  .mass-color-3 { color: var(--body3); }
+</style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<div id="ui">
+  <div id="header">
+    <h1>Three-Body Gravitational Simulator</h1>
+    <div class="sub">Newtonian Gravity · Velocity Verlet Integration · Chaotic Dynamics</div>
+  </div>
+
+  <!-- LEFT PANEL -->
+  <div id="panel-left">
+
+    <div class="panel-block">
+      <div class="panel-title">Simulation Control</div>
+      <div class="btn-row" style="margin-bottom:8px">
+        <button class="btn active" id="btn-playpause">⏸ Pause</button>
+        <button class="btn danger" id="btn-reset">↺ Reset</button>
+        <button class="btn" id="btn-random">⚄ Random</button>
+      </div>
+      <div class="slider-group">
+        <div class="slider-label">TIME STEP (dt) <span id="val-dt">0.010</span></div>
+        <input type="range" id="sl-dt" min="1" max="50" value="10" step="1">
+      </div>
+      <div class="slider-group">
+        <div class="slider-label">SPEED MULTIPLIER <span id="val-speed">1.0×</span></div>
+        <input type="range" id="sl-speed" min="1" max="20" value="4" step="1">
+      </div>
+      <div class="slider-group">
+        <div class="slider-label">GRAV. CONSTANT (G) <span id="val-G">1.00</span></div>
+        <input type="range" id="sl-G" min="1" max="200" value="100" step="1">
+      </div>
+    </div>
+
+    <div class="panel-block">
+      <div class="panel-title">Body Masses</div>
+      <div class="slider-group">
+        <div class="slider-label"><span style="color:var(--body1)">● BODY A</span> <span id="val-m1" class="mass-color-1">1.00</span></div>
+        <input type="range" id="sl-m1" min="1" max="100" value="33" step="1">
+      </div>
+      <div class="slider-group">
+        <div class="slider-label"><span style="color:var(--body2)">● BODY B</span> <span id="val-m2" class="mass-color-2">1.00</span></div>
+        <input type="range" id="sl-m2" min="1" max="100" value="33" step="1">
+      </div>
+      <div class="slider-group">
+        <div class="slider-label"><span style="color:var(--body3)">● BODY C</span> <span id="val-m3" class="mass-color-3">1.00</span></div>
+        <input type="range" id="sl-m3" min="1" max="100" value="33" step="1">
+      </div>
+    </div>
+
+    <div class="panel-block">
+      <div class="panel-title">Presets</div>
+      <div class="preset-grid">
+        <button class="preset-btn" onclick="loadPreset('figure8')">Figure-Eight</button>
+        <button class="preset-btn" onclick="loadPreset('lagrange')">Lagrange</button>
+        <button class="preset-btn" onclick="loadPreset('chaotic')">Chaotic</button>
+        <button class="preset-btn" onclick="loadPreset('slingshot')">Slingshot</button>
+        <button class="preset-btn" onclick="loadPreset('binary')">Binary+1</button>
+        <button class="preset-btn" onclick="loadPreset('resonance')">Resonance</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="panel-right">
+
+    <div class="panel-block">
+      <div class="panel-title">Overlays</div>
+      <div class="toggle-row">TRAILS <label class="toggle"><input type="checkbox" id="tog-trails" checked><span class="toggle-slider"></span></label></div>
+      <div class="toggle-row">VELOCITY VECTORS <label class="toggle"><input type="checkbox" id="tog-vel"><span class="toggle-slider"></span></label></div>
+      <div class="toggle-row">ACCEL. VECTORS <label class="toggle"><input type="checkbox" id="tog-acc"><span class="toggle-slider"></span></label></div>
+      <div class="toggle-row">FORCE LINES <label class="toggle"><input type="checkbox" id="tog-force"><span class="toggle-slider"></span></label></div>
+      <div class="toggle-row">GLOW EFFECT <label class="toggle"><input type="checkbox" id="tog-glow" checked><span class="toggle-slider"></span></label></div>
+      <hr class="divider">
+      <div class="toggle-row">FOLLOW BODY
+        <select id="sel-follow" style="width:80px;margin:0">
+          <option value="none">None</option>
+          <option value="0">Body A</option>
+          <option value="1">Body B</option>
+          <option value="2">Body C</option>
+          <option value="com">Center</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="panel-block">
+      <div class="panel-title">System State</div>
+      <div class="stat-row">TIME <span class="val" id="stat-time">0.000</span></div>
+      <div class="stat-row">TOTAL ENERGY <span class="val" id="stat-energy">-</span></div>
+      <div class="stat-row">KINETIC <span class="val" id="stat-ke">-</span></div>
+      <div class="stat-row">POTENTIAL <span class="val" id="stat-pe">-</span></div>
+      <div class="stat-row">ANG. MOMENTUM <span class="val" id="stat-lz">-</span></div>
+      <div class="stat-row">ENERGY DRIFT <span class="val warn" id="stat-drift">-</span></div>
+      <hr class="divider">
+      <div class="stat-row">BODY A SPEED <span class="val mass-color-1" id="stat-v1">-</span></div>
+      <div class="stat-row">BODY B SPEED <span class="val mass-color-2" id="stat-v2">-</span></div>
+      <div class="stat-row">BODY C SPEED <span class="val mass-color-3" id="stat-v3">-</span></div>
+    </div>
+
+    <div class="panel-block">
+      <div class="panel-title">Energy Graph</div>
+      <canvas id="energy-canvas" width="220" height="70"></canvas>
+    </div>
+
+    <div class="panel-block">
+      <div class="panel-title">Export</div>
+      <div class="btn-row">
+        <button class="btn" id="btn-export-json" style="font-size:9px">⬇ JSON</button>
+        <button class="btn" id="btn-export-csv" style="font-size:9px">⬇ CSV</button>
+        <button class="btn" id="btn-screenshot" style="font-size:9px">📷 PNG</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM CONTROLS -->
+  <div id="panel-bottom">
+    <button class="btn" id="btn-cinematic">🎬 Cinematic</button>
+    <button class="btn" id="btn-topdown">⬆ Top View</button>
+    <button class="btn" id="btn-resetcam">⊙ Reset Cam</button>
+    <button class="btn" id="btn-collision">💥 Collisions: OFF</button>
+  </div>
+
+  <div id="status-badge"><span class="dot"></span><span id="status-text">RUNNING</span></div>
+  <div id="fps-display">-- FPS</div>
+  <div id="crosshair"></div>
+</div>
+
+<!-- Three.js from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  THREE-BODY GRAVITATIONAL SIMULATOR
+//  Physics: Velocity Verlet Integration
+//  Renderer: Three.js WebGL
+// ═══════════════════════════════════════════════════
+
+// ── SCENE SETUP ──────────────────────────────────────
+const container = document.getElementById('canvas-container');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x040608, 1);
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 5000);
+camera.position.set(0, 40, 120);
+camera.lookAt(0, 0, 0);
+
+// OrbitControls (inline implementation for CDN compatibility)
+class SimpleOrbitControls {
+  constructor(camera, domElement) {
+    this.camera = camera;
+    this.domElement = domElement;
+    this.target = new THREE.Vector3();
+    this.enabled = true;
+    this.minDistance = 5;
+    this.maxDistance = 800;
+    this._spherical = { radius: 130, phi: 1.1, theta: 0.3 };
+    this._isDragging = false;
+    this._lastMouse = { x: 0, y: 0 };
+    this._isPanning = false;
+    this._panDelta = new THREE.Vector3();
+
+    domElement.addEventListener('mousedown', e => this._onMouseDown(e));
+    domElement.addEventListener('mousemove', e => this._onMouseMove(e));
+    domElement.addEventListener('mouseup', () => { this._isDragging = false; this._isPanning = false; });
+    domElement.addEventListener('wheel', e => this._onWheel(e), { passive: true });
+    domElement.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  _onMouseDown(e) {
+    if (!this.enabled) return;
+    if (e.button === 0) this._isDragging = true;
+    if (e.button === 2) this._isPanning = true;
+    this._lastMouse = { x: e.clientX, y: e.clientY };
+  }
+  _onMouseMove(e) {
+    if (!this.enabled) return;
+    const dx = e.clientX - this._lastMouse.x;
+    const dy = e.clientY - this._lastMouse.y;
+    this._lastMouse = { x: e.clientX, y: e.clientY };
+    if (this._isDragging) {
+      this._spherical.theta -= dx * 0.005;
+      this._spherical.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._spherical.phi - dy * 0.005));
+    }
+    if (this._isPanning) {
+      const scale = this._spherical.radius * 0.001;
+      const right = new THREE.Vector3().crossVectors(
+        new THREE.Vector3().subVectors(this.camera.position, this.target).normalize(),
+        this.camera.up
+      ).normalize();
+      const up = this.camera.up.clone().normalize();
+      this.target.addScaledVector(right, -dx * scale);
+      this.target.addScaledVector(up, dy * scale);
+    }
+  }
+  _onWheel(e) {
+    if (!this.enabled) return;
+    this._spherical.radius = Math.max(this.minDistance, Math.min(this.maxDistance,
+      this._spherical.radius * (1 + e.deltaY * 0.001)));
+  }
+  update() {
+    const s = this._spherical;
+    this.camera.position.set(
+      this.target.x + s.radius * Math.sin(s.phi) * Math.sin(s.theta),
+      this.target.y + s.radius * Math.cos(s.phi),
+      this.target.z + s.radius * Math.sin(s.phi) * Math.cos(s.theta)
+    );
+    this.camera.lookAt(this.target);
+  }
+}
+
+const controls = new SimpleOrbitControls(camera, renderer.domElement);
+
+// ── PHYSICS CONSTANTS ─────────────────────────────────
+let G = 1.0;
+let dt = 0.01;
+let speedMult = 4;
+let collisionsEnabled = false;
+let simTime = 0;
+let paused = false;
+let cinematicMode = false;
+let cinematicAngle = 0;
+const SOFTENING = 0.5; // softening length to avoid singularity
+const TRAIL_LENGTH = 600;
+
+// ── BODY COLORS ───────────────────────────────────────
+const COLORS = [0xff4466, 0x44aaff, 0xffcc44];
+const COLOR_VEC = [
+  new THREE.Color(0xff4466),
+  new THREE.Color(0x44aaff),
+  new THREE.Color(0xffcc44)
+];
+
+// ── PHYSICS STATE ─────────────────────────────────────
+let bodies = [];
+let initialEnergy = null;
+let energyHistory = [];
+const MAX_ENERGY_HISTORY = 220;
+let exportLog = [];
+const MAX_LOG = 2000;
+
+function makeBody(mass, pos, vel) {
+  return {
+    mass,
+    pos: new THREE.Vector3(...pos),
+    vel: new THREE.Vector3(...vel),
+    acc: new THREE.Vector3(),
+    accPrev: new THREE.Vector3(),
+    trail: [],
+  };
+}
+
+// ── PRESETS ───────────────────────────────────────────
+const PRESETS = {
+  figure8: () => {
+    // Chenciner & Montgomery figure-eight solution
+    const v = 0.93240737;
+    const vy = 0.86473146;
+    return [
+      makeBody(1, [-0.97000436, 0.24308753, 0], [v * 0.5, vy * 0.5, 0]),
+      makeBody(1, [0.97000436, -0.24308753, 0], [v * 0.5, vy * 0.5, 0]),
+      makeBody(1, [0, 0, 0], [-v, -vy, 0]),
+    ];
+  },
+  lagrange: () => {
+    const r = 20;
+    const a = (2 * Math.PI) / 3;
+    const omega = Math.sqrt(G * 3 / (r * r * r));  // approximate
+    return [
+      makeBody(1, [r * Math.cos(0), 0, r * Math.sin(0)], [0, 0, 0].map((v, i) => {
+        const vx = -r * omega * Math.sin(0), vz = r * omega * Math.cos(0);
+        return [vx, 0, vz][i];
+      })),
+      makeBody(1, [r * Math.cos(a), 0, r * Math.sin(a)], [
+        -r * omega * Math.sin(a), 0, r * omega * Math.cos(a)
+      ]),
+      makeBody(1, [r * Math.cos(2 * a), 0, r * Math.sin(2 * a)], [
+        -r * omega * Math.sin(2 * a), 0, r * omega * Math.cos(2 * a)
+      ]),
+    ];
+  },
+  chaotic: () => [
+    makeBody(1.0, [15, 5, 3], [-0.5, 0.3, 0.1]),
+    makeBody(1.2, [-12, -3, 7], [0.4, -0.2, -0.3]),
+    makeBody(0.8, [3, -10, -5], [0.1, -0.1, 0.2]),
+  ],
+  slingshot: () => [
+    makeBody(10, [0, 0, 0], [0, 0, 0]),
+    makeBody(1, [30, 0, 0], [0, 0, 1.8]),
+    makeBody(0.5, [-30, 5, 0], [0, 0, -1.2]),
+  ],
+  binary: () => [
+    makeBody(5, [-8, 0, 0], [0, 0, 1.4]),
+    makeBody(5, [8, 0, 0], [0, 0, -1.4]),
+    makeBody(0.1, [0, 0, 40], [1.5, 0, 0]),
+  ],
+  resonance: () => {
+    const scale = 15;
+    return [
+      makeBody(1.5, [scale, 0, 0], [0, 0, 1.0]),
+      makeBody(1.0, [-scale * 0.6, scale * 0.8, 0], [-0.7, 0, -0.8]),
+      makeBody(1.0, [-scale * 0.6, -scale * 0.8, 0], [0.7, 0, -0.2]),
+    ];
+  },
+};
+
+function loadPreset(name) {
+  const preset = PRESETS[name];
+  if (!preset) return;
+
+  // Scale figure-eight to reasonable screen size
+  if (name === 'figure8') {
+    bodies = preset();
+    bodies.forEach(b => {
+      b.pos.multiplyScalar(25);
+      b.vel.multiplyScalar(10.5);
+    });
+  } else {
+    bodies = preset();
+  }
+
+  applyMassSliders();
+  resetSimState();
+}
+
+function randomizeBodies() {
+  bodies = [];
+  const m1 = getMass(0), m2 = getMass(1), m3 = getMass(2);
+  const totalM = m1 + m2 + m3;
+  const scale = 25;
+  const vscale = 0.8;
+
+  // Random positions centered at COM
+  const positions = [[0,0,0],[0,0,0],[0,0,0]].map(() => [
+    (Math.random()-0.5)*2*scale,
+    (Math.random()-0.5)*scale*0.5,
+    (Math.random()-0.5)*2*scale
+  ]);
+
+  // Center of mass
+  const comPos = [0,1,2].map(i =>
+    (m1*positions[0][i] + m2*positions[1][i] + m3*positions[2][i])/totalM
+  );
+  positions.forEach(p => { p[0]-=comPos[0]; p[1]-=comPos[1]; p[2]-=comPos[2]; });
+
+  const velocities = [[0,0,0],[0,0,0],[0,0,0]].map(() => [
+    (Math.random()-0.5)*2*vscale,
+    (Math.random()-0.5)*vscale*0.3,
+    (Math.random()-0.5)*2*vscale
+  ]);
+
+  // Zero COM velocity
+  const comVel = [0,1,2].map(i =>
+    (m1*velocities[0][i] + m2*velocities[1][i] + m3*velocities[2][i])/totalM
+  );
+  velocities.forEach(v => { v[0]-=comVel[0]; v[1]-=comVel[1]; v[2]-=comVel[2]; });
+
+  bodies = [
+    makeBody(m1, positions[0], velocities[0]),
+    makeBody(m2, positions[1], velocities[1]),
+    makeBody(m3, positions[2], velocities[2]),
+  ];
+
+  resetSimState();
+}
+
+// ── PHYSICS ENGINE ────────────────────────────────────
+function computeAccelerations(bs) {
+  bs.forEach(b => b.acc.set(0, 0, 0));
+  for (let i = 0; i < bs.length; i++) {
+    for (let j = i + 1; j < bs.length; j++) {
+      const rij = new THREE.Vector3().subVectors(bs[j].pos, bs[i].pos);
+      const dist2 = rij.lengthSq() + SOFTENING * SOFTENING;
+      const dist = Math.sqrt(dist2);
+      const forceMag = G / (dist2 * dist); // G/(r^3) factor
+      const fi = rij.clone().multiplyScalar(forceMag * bs[j].mass);
+      const fj = rij.clone().multiplyScalar(-forceMag * bs[i].mass);
+      bs[i].acc.add(fi);
+      bs[j].acc.add(fj);
+
+      // Collision check
+      if (collisionsEnabled && dist < 3.0) {
+        mergeBodies(i, j, bs);
+        return true; // signal re-init
+      }
+    }
+  }
+  return false;
+}
+
+function mergeBodies(i, j, bs) {
+  // Merge j into i
+  const totalMass = bs[i].mass + bs[j].mass;
+  const newVel = bs[i].vel.clone().multiplyScalar(bs[i].mass)
+    .add(bs[j].vel.clone().multiplyScalar(bs[j].mass))
+    .divideScalar(totalMass);
+  const newPos = bs[i].pos.clone().multiplyScalar(bs[i].mass)
+    .add(bs[j].pos.clone().multiplyScalar(bs[j].mass))
+    .divideScalar(totalMass);
+  bs[i].mass = totalMass;
+  bs[i].pos.copy(newPos);
+  bs[i].vel.copy(newVel);
+  bs.splice(j, 1);
+  rebuildMeshes();
+}
+
+// Velocity Verlet Integration (symplectic)
+function stepVerlet(bs, dt_actual) {
+  // Step 1: Update positions using current vel and acc
+  bs.forEach(b => {
+    b.pos.addScaledVector(b.vel, dt_actual);
+    b.pos.addScaledVector(b.acc, 0.5 * dt_actual * dt_actual);
+    b.accPrev.copy(b.acc);
+  });
+
+  // Step 2: Compute new accelerations
+  const merged = computeAccelerations(bs);
+  if (merged) return;
+
+  // Step 3: Update velocities using average of old and new acc
+  bs.forEach(b => {
+    b.vel.addScaledVector(b.accPrev, 0.5 * dt_actual);
+    b.vel.addScaledVector(b.acc, 0.5 * dt_actual);
+  });
+}
+
+function computeEnergy(bs) {
+  let KE = 0, PE = 0;
+  bs.forEach(b => {
+    KE += 0.5 * b.mass * b.vel.lengthSq();
+  });
+  for (let i = 0; i < bs.length; i++) {
+    for (let j = i + 1; j < bs.length; j++) {
+      const r = bs[i].pos.distanceTo(bs[j].pos);
+      PE -= G * bs[i].mass * bs[j].mass / Math.max(r, SOFTENING);
+    }
+  }
+  return { KE, PE, total: KE + PE };
+}
+
+function computeAngularMomentum(bs) {
+  const L = new THREE.Vector3();
+  bs.forEach(b => {
+    L.add(new THREE.Vector3().crossVectors(b.pos, b.vel).multiplyScalar(b.mass));
+  });
+  return L.length();
+}
+
+// ── THREE.JS OBJECTS ──────────────────────────────────
+let bodyMeshes = [];
+let glowMeshes = [];
+let trailLines = [];
+let velArrows = [];
+let accArrows = [];
+let forceLines = [];
+let starField;
+
+function createStarField() {
+  const geo = new THREE.BufferGeometry();
+  const N = 3000;
+  const pos = new Float32Array(N * 3);
+  const col = new Float32Array(N * 3);
+  const sizes = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 800 + Math.random() * 400;
+    pos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+    pos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+    pos[i*3+2] = r * Math.cos(phi);
+    const t = Math.random();
+    col[i*3] = 0.7 + t * 0.3;
+    col[i*3+1] = 0.8 + t * 0.1;
+    col[i*3+2] = 0.9 + t * 0.1;
+    sizes[i] = 0.5 + Math.random() * 1.5;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+  const mat = new THREE.PointsMaterial({ size: 0.8, vertexColors: true, sizeAttenuation: false });
+  return new THREE.Points(geo, mat);
+}
+
+function buildBodyMesh(color, mass) {
+  const r = Math.max(1.2, Math.log(mass + 1) * 1.5);
+  const geo = new THREE.SphereGeometry(r, 32, 32);
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    emissive: color,
+    emissiveIntensity: 0.7,
+    roughness: 0.1,
+    metalness: 0.3,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+
+  // Point light
+  const light = new THREE.PointLight(color, 2, 80, 2);
+  mesh.add(light);
+
+  return mesh;
+}
+
+function buildGlowMesh(color, mass) {
+  const r = Math.max(1.2, Math.log(mass + 1) * 1.5) * 2.5;
+  const geo = new THREE.SphereGeometry(r, 16, 16);
+  const mat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.08,
+    depthWrite: false,
+  });
+  return new THREE.Mesh(geo, mat);
+}
+
+function rebuildMeshes() {
+  bodyMeshes.forEach(m => scene.remove(m));
+  glowMeshes.forEach(m => scene.remove(m));
+  trailLines.forEach(m => scene.remove(m));
+  velArrows.forEach(m => scene.remove(m));
+  accArrows.forEach(m => scene.remove(m));
+  forceLines.forEach(m => scene.remove(m));
+  bodyMeshes = [];
+  glowMeshes = [];
+  trailLines = [];
+  velArrows = [];
+  accArrows = [];
+  forceLines = [];
+
+  bodies.forEach((b, i) => {
+    const color = COLORS[i % COLORS.length];
+
+    const mesh = buildBodyMesh(color, b.mass);
+    scene.add(mesh);
+    bodyMeshes.push(mesh);
+
+    const glow = buildGlowMesh(color, b.mass);
+    scene.add(glow);
+    glowMeshes.push(glow);
+
+    // Trail
+    const trailGeo = new THREE.BufferGeometry();
+    const trailPos = new Float32Array(TRAIL_LENGTH * 3);
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+    const trailMat = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.55,
+      vertexColors: false,
+      linewidth: 1,
+    });
+    const trail = new THREE.Line(trailGeo, trailMat);
+    scene.add(trail);
+    trailLines.push(trail);
+  });
+
+  // Force lines between bodies
+  for (let i = 0; i < 3; i++) {
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(6);
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.LineBasicMaterial({ color: 0x334466, transparent: true, opacity: 0.25 });
+    const line = new THREE.Line(geo, mat);
+    line.visible = false;
+    scene.add(line);
+    forceLines.push(line);
+  }
+}
+
+// ── GRID ──────────────────────────────────────────────
+function buildGrid() {
+  const helper = new THREE.GridHelper(200, 40, 0x112233, 0x0a1520);
+  helper.position.y = -30;
+  scene.add(helper);
+}
+
+// ── LIGHTING ─────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0x112244, 0.4);
+scene.add(ambient);
+
+// ── SCENE INIT ────────────────────────────────────────
+starField = createStarField();
+scene.add(starField);
+buildGrid();
+
+// ── TRAIL UPDATE ─────────────────────────────────────
+function updateTrails() {
+  const showTrails = document.getElementById('tog-trails').checked;
+  bodies.forEach((b, i) => {
+    if (i >= trailLines.length) return;
+    b.trail.push(b.pos.clone());
+    if (b.trail.length > TRAIL_LENGTH) b.trail.shift();
+
+    trailLines[i].visible = showTrails;
+    if (!showTrails) return;
+
+    const positions = trailLines[i].geometry.attributes.position.array;
+    const len = b.trail.length;
+    for (let t = 0; t < TRAIL_LENGTH; t++) {
+      const pt = b.trail[Math.min(t, len - 1)];
+      positions[t*3] = pt.x;
+      positions[t*3+1] = pt.y;
+      positions[t*3+2] = pt.z;
+    }
+    trailLines[i].geometry.attributes.position.needsUpdate = true;
+    trailLines[i].geometry.setDrawRange(0, len);
+  });
+}
+
+// ── ARROW HELPERS ─────────────────────────────────────
+function drawArrow(origin, dir, color, length, scene) {
+  const arrow = new THREE.ArrowHelper(
+    dir.clone().normalize(), origin, length, color, length * 0.3, length * 0.15
+  );
+  scene.add(arrow);
+  return arrow;
+}
+
+// ── FORCE LINE UPDATE ─────────────────────────────────
+function updateForceLines() {
+  const show = document.getElementById('tog-force').checked;
+  let lineIdx = 0;
+  for (let i = 0; i < bodies.length && lineIdx < forceLines.length; i++) {
+    for (let j = i + 1; j < bodies.length && lineIdx < forceLines.length; j++) {
+      const line = forceLines[lineIdx++];
+      line.visible = show;
+      if (!show) continue;
+      const pos = line.geometry.attributes.position.array;
+      pos[0] = bodies[i].pos.x; pos[1] = bodies[i].pos.y; pos[2] = bodies[i].pos.z;
+      pos[3] = bodies[j].pos.x; pos[4] = bodies[j].pos.y; pos[5] = bodies[j].pos.z;
+      line.geometry.attributes.position.needsUpdate = true;
+    }
+  }
+}
+
+// ── VECTORS UPDATE ────────────────────────────────────
+const arrowPool = [];
+function clearArrowPool() {
+  arrowPool.forEach(a => scene.remove(a));
+  arrowPool.length = 0;
+}
+
+function updateVectors() {
+  clearArrowPool();
+  const showVel = document.getElementById('tog-vel').checked;
+  const showAcc = document.getElementById('tog-acc').checked;
+  bodies.forEach((b, i) => {
+    const color = COLORS[i % COLORS.length];
+    if (showVel && b.vel.length() > 0.0001) {
+      const a = drawArrow(b.pos, b.vel, color, b.vel.length() * 4, scene);
+      arrowPool.push(a);
+    }
+    if (showAcc && b.acc.length() > 0.0001) {
+      const a = drawArrow(b.pos, b.acc, 0xffffff, b.acc.length() * 40, scene);
+      arrowPool.push(a);
+    }
+  });
+}
+
+// ── UI CONTROLS ───────────────────────────────────────
+function getMass(idx) {
+  const sl = [document.getElementById('sl-m1'), document.getElementById('sl-m2'), document.getElementById('sl-m3')];
+  return parseFloat(sl[idx].value) / 10;
+}
+
+function applyMassSliders() {
+  if (bodies.length >= 1) bodies[0].mass = getMass(0);
+  if (bodies.length >= 2) bodies[1].mass = getMass(1);
+  if (bodies.length >= 3) bodies[2].mass = getMass(2);
+}
+
+// Slider bindings
+const slDt = document.getElementById('sl-dt');
+const slSpeed = document.getElementById('sl-speed');
+const slG = document.getElementById('sl-G');
+const slM1 = document.getElementById('sl-m1');
+const slM2 = document.getElementById('sl-m2');
+const slM3 = document.getElementById('sl-m3');
+
+slDt.addEventListener('input', () => {
+  dt = parseFloat(slDt.value) / 1000;
+  document.getElementById('val-dt').textContent = dt.toFixed(3);
+});
+slSpeed.addEventListener('input', () => {
+  speedMult = parseInt(slSpeed.value);
+  document.getElementById('val-speed').textContent = speedMult.toFixed(1) + '×';
+});
+slG.addEventListener('input', () => {
+  G = parseFloat(slG.value) / 100;
+  document.getElementById('val-G').textContent = G.toFixed(2);
+});
+[slM1, slM2, slM3].forEach((sl, i) => {
+  sl.addEventListener('input', () => {
+    const v = parseFloat(sl.value) / 10;
+    document.getElementById(`val-m${i+1}`).textContent = v.toFixed(2);
+    applyMassSliders();
+  });
+});
+
+// Buttons
+document.getElementById('btn-playpause').addEventListener('click', () => {
+  paused = !paused;
+  const btn = document.getElementById('btn-playpause');
+  btn.textContent = paused ? '▶ Play' : '⏸ Pause';
+  btn.classList.toggle('active', !paused);
+  document.getElementById('status-text').textContent = paused ? 'PAUSED' : 'RUNNING';
+  document.querySelector('#status-badge .dot').style.background = paused ? 'var(--accent2)' : 'var(--accent3)';
+  document.querySelector('#status-badge .dot').style.animationPlayState = paused ? 'paused' : 'running';
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  loadPreset('figure8');
+});
+
+document.getElementById('btn-random').addEventListener('click', randomizeBodies);
+
+document.getElementById('btn-cinematic').addEventListener('click', () => {
+  cinematicMode = !cinematicMode;
+  document.getElementById('btn-cinematic').classList.toggle('active', cinematicMode);
+  controls.enabled = !cinematicMode;
+});
+
+document.getElementById('btn-topdown').addEventListener('click', () => {
+  controls._spherical = { radius: 150, phi: 0.05, theta: 0 };
+});
+
+document.getElementById('btn-resetcam').addEventListener('click', () => {
+  controls._spherical = { radius: 130, phi: 1.1, theta: 0.3 };
+  controls.target.set(0, 0, 0);
+});
+
+document.getElementById('btn-collision').addEventListener('click', () => {
+  collisionsEnabled = !collisionsEnabled;
+  document.getElementById('btn-collision').textContent = `💥 Collisions: ${collisionsEnabled ? 'ON' : 'OFF'}`;
+  document.getElementById('btn-collision').classList.toggle('active', collisionsEnabled);
+});
+
+document.getElementById('btn-export-json').addEventListener('click', () => {
+  const data = exportLog.map(e => ({
+    t: e.t, energy: e.energy,
+    bodies: e.bodies.map(b => ({
+      pos: [b.pos.x, b.pos.y, b.pos.z],
+      vel: [b.vel.x, b.vel.y, b.vel.z],
+      mass: b.mass
+    }))
+  }));
+  download('threebody_sim.json', JSON.stringify(data, null, 2));
+});
+
+document.getElementById('btn-export-csv').addEventListener('click', () => {
+  const header = 't,energy,b0x,b0y,b0z,b0vx,b0vy,b0vz,b1x,b1y,b1z,b1vx,b1vy,b1vz,b2x,b2y,b2z,b2vx,b2vy,b2vz\n';
+  const rows = exportLog.map(e => {
+    const b = e.bodies;
+    return [e.t.toFixed(4), e.energy.toFixed(6),
+      ...b.map(bi => [bi.pos.x, bi.pos.y, bi.pos.z, bi.vel.x, bi.vel.y, bi.vel.z].map(v => v.toFixed(4))).flat()
+    ].join(',');
+  }).join('\n');
+  download('threebody_sim.csv', header + rows);
+});
+
+document.getElementById('btn-screenshot').addEventListener('click', () => {
+  renderer.render(scene, camera);
+  renderer.domElement.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'threebody_screenshot.png';
+    a.click(); URL.revokeObjectURL(url);
+  });
+});
+
+function download(filename, text) {
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ── ENERGY GRAPH ─────────────────────────────────────
+const eCanvas = document.getElementById('energy-canvas');
+const eCtx = eCanvas.getContext('2d');
+
+function drawEnergyGraph() {
+  const w = eCanvas.width, h = eCanvas.height;
+  eCtx.clearRect(0, 0, w, h);
+  if (energyHistory.length < 2) return;
+
+  const allVals = energyHistory.flatMap(e => [e.total, e.KE, e.PE]);
+  const minV = Math.min(...allVals);
+  const maxV = Math.max(...allVals);
+  const range = maxV - minV || 1;
+
+  const toY = v => h - ((v - minV) / range) * (h - 4) - 2;
+  const toX = (i) => (i / (energyHistory.length - 1)) * w;
+
+  const drawLine = (key, color) => {
+    eCtx.beginPath();
+    eCtx.strokeStyle = color;
+    eCtx.lineWidth = 1;
+    energyHistory.forEach((e, i) => {
+      const x = toX(i), y = toY(e[key]);
+      i === 0 ? eCtx.moveTo(x, y) : eCtx.lineTo(x, y);
+    });
+    eCtx.stroke();
+  };
+
+  drawLine('KE', '#ff4466');
+  drawLine('PE', '#44aaff');
+  drawLine('total', '#7fff7f');
+
+  // Legend
+  eCtx.font = '8px Share Tech Mono';
+  eCtx.fillStyle = '#ff4466'; eCtx.fillText('KE', 4, 10);
+  eCtx.fillStyle = '#44aaff'; eCtx.fillText('PE', 20, 10);
+  eCtx.fillStyle = '#7fff7f'; eCtx.fillText('E', 38, 10);
+}
+
+// ── STATS UPDATE ─────────────────────────────────────
+function updateStats() {
+  if (bodies.length === 0) return;
+  const { KE, PE, total } = computeEnergy(bodies);
+  const L = computeAngularMomentum(bodies);
+
+  if (initialEnergy === null) initialEnergy = total;
+  const drift = initialEnergy !== 0 ? Math.abs((total - initialEnergy) / initialEnergy) * 100 : 0;
+
+  document.getElementById('stat-time').textContent = simTime.toFixed(2);
+  document.getElementById('stat-energy').textContent = total.toFixed(3);
+  document.getElementById('stat-ke').textContent = KE.toFixed(3);
+  document.getElementById('stat-pe').textContent = PE.toFixed(3);
+  document.getElementById('stat-lz').textContent = L.toFixed(3);
+  document.getElementById('stat-drift').textContent = drift.toFixed(4) + '%';
+
+  bodies.forEach((b, i) => {
+    const el = document.getElementById(`stat-v${i+1}`);
+    if (el) el.textContent = b.vel.length().toFixed(3);
+  });
+
+  energyHistory.push({ KE, PE, total });
+  if (energyHistory.length > MAX_ENERGY_HISTORY) energyHistory.shift();
+  drawEnergyGraph();
+
+  // Export log
+  if (exportLog.length < MAX_LOG && Math.floor(simTime * 10) % 1 === 0) {
+    exportLog.push({
+      t: simTime,
+      energy: total,
+      bodies: bodies.map(b => ({
+        pos: b.pos.clone(),
+        vel: b.vel.clone(),
+        mass: b.mass
+      }))
+    });
+  }
+}
+
+// ── CAMERA FOLLOW ─────────────────────────────────────
+function updateCameraFollow() {
+  const sel = document.getElementById('sel-follow').value;
+  if (sel === 'none') return;
+
+  let target;
+  if (sel === 'com') {
+    // Center of mass
+    const totalM = bodies.reduce((s, b) => s + b.mass, 0);
+    target = bodies.reduce((acc, b) =>
+      acc.add(b.pos.clone().multiplyScalar(b.mass)), new THREE.Vector3()
+    ).divideScalar(totalM);
+  } else {
+    const idx = parseInt(sel);
+    if (idx < bodies.length) target = bodies[idx].pos;
+  }
+
+  if (target) {
+    controls.target.lerp(target, 0.05);
+  }
+}
+
+// ── RESET ────────────────────────────────────────────
+function resetSimState() {
+  simTime = 0;
+  initialEnergy = null;
+  energyHistory = [];
+  exportLog = [];
+  bodies.forEach(b => b.trail = []);
+
+  // Initial acceleration computation
+  computeAccelerations(bodies);
+
+  rebuildMeshes();
+  updateStats();
+}
+
+// ── MAIN LOOP ─────────────────────────────────────────
+let lastTime = performance.now();
+let fpsAccum = 0, fpsCount = 0, fpslast = performance.now();
+const STATS_INTERVAL = 10; // update stats every N frames
+let frameCount = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const now = performance.now();
+  const wallDt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+
+  // FPS
+  fpsAccum += wallDt;
+  fpsCount++;
+  if (fpsAccum > 0.5) {
+    document.getElementById('fps-display').textContent = Math.round(fpsCount / fpsAccum) + ' FPS';
+    fpsAccum = 0; fpsCount = 0;
+  }
+
+  // Physics steps
+  if (!paused && bodies.length > 0) {
+    const steps = speedMult;
+    for (let s = 0; s < steps; s++) {
+      stepVerlet(bodies, dt);
+      simTime += dt;
+    }
+  }
+
+  // Update meshes
+  bodies.forEach((b, i) => {
+    if (i < bodyMeshes.length) {
+      bodyMeshes[i].position.copy(b.pos);
+      glowMeshes[i].position.copy(b.pos);
+      // Pulse glow
+      const pulse = 1 + 0.15 * Math.sin(Date.now() * 0.002 + i * 2.1);
+      glowMeshes[i].visible = document.getElementById('tog-glow').checked;
+      glowMeshes[i].scale.setScalar(pulse);
+    }
+  });
+
+  updateTrails();
+  updateForceLines();
+
+  frameCount++;
+  if (frameCount % 3 === 0) updateVectors();
+  if (frameCount % STATS_INTERVAL === 0) updateStats();
+
+  // Cinematic camera
+  if (cinematicMode) {
+    cinematicAngle += 0.003;
+    const r = controls._spherical.radius;
+    const COM = bodies.reduce((acc, b) => acc.add(b.pos.clone().multiplyScalar(b.mass)), new THREE.Vector3())
+      .divideScalar(bodies.reduce((s,b) => s+b.mass, 0));
+    camera.position.set(
+      COM.x + r * Math.sin(cinematicAngle) * Math.cos(0.4),
+      COM.y + r * Math.sin(0.4),
+      COM.z + r * Math.cos(cinematicAngle) * Math.cos(0.4)
+    );
+    camera.lookAt(COM);
+  } else {
+    updateCameraFollow();
+    controls.update();
+  }
+
+  // Slowly rotate starfield
+  starField.rotation.y += 0.00005;
+
+  renderer.render(scene, camera);
+}
+
+// ── RESIZE ────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── INITIALIZE ────────────────────────────────────────
+// Update initial slider displays
+document.getElementById('val-dt').textContent = (parseFloat(slDt.value) / 1000).toFixed(3);
+document.getElementById('val-speed').textContent = parseInt(slSpeed.value).toFixed(1) + '×';
+document.getElementById('val-G').textContent = (parseFloat(slG.value) / 100).toFixed(2);
+document.getElementById('val-m1').textContent = (parseFloat(slM1.value) / 10).toFixed(2);
+document.getElementById('val-m2').textContent = (parseFloat(slM2.value) / 10).toFixed(2);
+document.getElementById('val-m3').textContent = (parseFloat(slM3.value) / 10).toFixed(2);
+
+// Load default figure-eight preset
+loadPreset('figure8');
+
+// Start!
+animate();
+</script>
+</body>
+</html>
